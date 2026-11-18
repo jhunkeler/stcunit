@@ -18,8 +18,8 @@
 #include <sys/stat.h>
 
 #define TEST_LIB_VERSION_MAJOR "1"
-#define TEST_LIB_VERSION_MINOR "0"
-#define TEST_LIB_VERSION_PATCH "1"
+#define TEST_LIB_VERSION_MINOR "1"
+#define TEST_LIB_VERSION_PATCH "0"
 #define TEST_LIB_VERSION TEST_LIB_VERSION_MAJOR "." TEST_LIB_VERSION_MINOR "." TEST_LIB_VERSION_PATCH
 
 static inline void TEST_SHOW_LIB_INFO(void) {
@@ -60,6 +60,8 @@ static inline void TEST_SHOW_LIB_INFO(void) {
 
 static const char *TEST_SUITE_NAME;
 #define TEST_SUITE_NAME_MAX 255
+static char TEST_SUITE_WORKSPACE_DIR[4096];
+static char TEST_SUITE_LOG_DIR[4096];
 
 // Valid unit_test_fixture array indicies
 enum {
@@ -180,43 +182,106 @@ static inline const char *TEST_SUITE_SAFE_NAME(const char *s) {
     return name;
 }
 
+static inline void TEST_SHOW_EXE_INFO(void) {
+    const char *ssp_type; \
+    switch (TEST_EXE_USES_STACK_PROTECTOR) { \
+        case 1: \
+            ssp_type = "Yes (all)"; \
+            break; \
+        case 2: \
+            ssp_type = "Yes (strong)"; \
+            break; \
+        case 3: \
+            ssp_type = "Yes"; \
+            break; \
+        default: \
+            ssp_type = ""; \
+    }; \
+    fprintf(stdout, TEST_TERM_COLOR_BRIGHT_BLUE "  EXE" \
+        " %sCompiled with _FORTIFY_SOURCE...%s %s (level %d)%s\n", TEST_TERM_COLOR_BRIGHT_WHITE, \
+        TEST_TERM_COLOR_RESET, TEST_EXE_USES_FORTIFY_SOURCE ? "Yes" : "No", TEST_EXE_USES_FORTIFY_SOURCE, \
+        TEST_TERM_COLOR_RESET); \
+    fprintf(stdout, TEST_TERM_COLOR_BRIGHT_BLUE "  EXE"
+        " %sCompiled with stack protector...%s %s%s\n", \
+        TEST_TERM_COLOR_BRIGHT_WHITE, TEST_TERM_COLOR_RESET, ssp_type, TEST_TERM_COLOR_RESET); \
+    fprintf(stdout, TEST_TERM_COLOR_BRIGHT_BLUE "  EXE"
+        " %sCompiled with AddressSanitizer...%s %s%s\n", \
+        TEST_TERM_COLOR_BRIGHT_WHITE, TEST_TERM_COLOR_RESET, TEST_EXE_USES_ASAN ? "Yes" : "No", \
+        TEST_TERM_COLOR_RESET); \
+    fprintf(stdout, TEST_TERM_COLOR_BRIGHT_BLUE "  EXE"
+        " %sCompiled with coverage...%s %s%s\n", \
+        TEST_TERM_COLOR_BRIGHT_WHITE, TEST_TERM_COLOR_RESET, TEST_EXE_USES_COVERAGE ? "Yes" : "No", \
+        TEST_TERM_COLOR_RESET); \
+}
+
+static inline void TEST_SUITE_MAKE_WORKSPACE_DIR(void) {
+    const char *tmp = getenv("STCUNIT_WORKSPACE_DIR");
+    const char *here = ".";
+    char *rp = realpath(tmp ? tmp : here, NULL);
+    snprintf(TEST_SUITE_WORKSPACE_DIR, sizeof(TEST_SUITE_WORKSPACE_DIR), "%s/%s", rp ? rp : here, tmp ? tmp : "stcunit_workspace");
+    free(rp);
+    if (mkdir(TEST_SUITE_WORKSPACE_DIR, 0700) < 0 && errno != EEXIST) {
+        fprintf(stdout, "unable to create workspace directory: %s (%s)\n", TEST_SUITE_WORKSPACE_DIR, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+}
+
+static inline void TEST_SUITE_MAKE_LOG_DIR(void) {
+    const size_t len = strlen(TEST_SUITE_LOG_DIR);
+    if (!len) {
+        fprintf(stdout, "TEST_SUITE_LOG_DIR is empty\n");
+    }
+    char *logdir = strdup(TEST_SUITE_LOG_DIR);
+    if (!logdir) {
+        fprintf(stdout, "unable to duplicate log directory path\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        char *p = &logdir[i];
+        if (*p != '/') {
+            continue;
+        }
+        *p = '\0';
+        if (!strlen(logdir)) {
+            *p = '/';
+            continue;
+        }
+        puts(logdir);
+        if (mkdir(logdir, 0700) < 0 && errno != EEXIST) {
+            fprintf(stdout, "unable to create log directory: %s\n", logdir);
+            free(logdir);
+            exit(EXIT_FAILURE);
+        }
+        *p = '/';
+    }
+    puts(logdir);
+    if (mkdir(logdir, 0700) < 0 && errno != EEXIST) {
+        fprintf(stdout, "unable to create log directory: %s\n", logdir);
+        free(logdir);
+        exit(EXIT_FAILURE);
+    }
+    free(logdir);
+}
+
 #define TEST_SUITE(NAME) \
     int main(int argc, char *argv[]) { \
         (void) argc; \
         (void) argv; \
         TEST_SHOW_LIB_INFO(); \
         TEST_SUITE_NAME = TEST_SUITE_SAFE_NAME(NAME); \
+        TEST_SUITE_MAKE_WORKSPACE_DIR(); \
+        snprintf(TEST_SUITE_LOG_DIR, sizeof(TEST_SUITE_LOG_DIR), "%.*s/%.*s", \
+            (int) ((sizeof(TEST_SUITE_LOG_DIR) - 2) / 2), TEST_SUITE_WORKSPACE_DIR, \
+            (int) ((sizeof(TEST_SUITE_LOG_DIR) - 2) / 2), TEST_SUITE_NAME); \
+        TEST_SUITE_MAKE_LOG_DIR(); \
         int TEST_LOCAL_STATS[TEST_STATS_ARRAY_MAX] = {0}; \
         TEST_MSG(stdout, NULL, TEST_TERM_COLOR_BRIGHT_BLUE "SUITE", "%s%s...%s", TEST_TERM_COLOR_BRIGHT_WHITE, \
             TEST_SUITE_NAME, TEST_TERM_COLOR_RESET); \
         if (TEST_VERBOSE()) { \
-            const char *ssp_type; \
-            switch (TEST_EXE_USES_STACK_PROTECTOR) { \
-                case 1: \
-                    ssp_type = "Yes (all)"; \
-                    break; \
-                case 2: \
-                    ssp_type = "Yes (strong)"; \
-                    break; \
-                case 3: \
-                    ssp_type = "Yes"; \
-                    break; \
-                default: \
-                    ssp_type = ""; \
-            }; \
-            TEST_MSG(stdout, NULL, TEST_TERM_COLOR_BRIGHT_BLUE "  EXE", \
-                " %sCompiled with _FORTIFY_SOURCE...%s %s (level %d)%s", TEST_TERM_COLOR_BRIGHT_WHITE, \
-                TEST_TERM_COLOR_RESET, TEST_EXE_USES_FORTIFY_SOURCE ? "Yes" : "No", TEST_EXE_USES_FORTIFY_SOURCE, \
-                TEST_TERM_COLOR_RESET); \
-            TEST_MSG(stdout, NULL, TEST_TERM_COLOR_BRIGHT_BLUE "  EXE", " %sCompiled with stack protector...%s %s%s", \
-                TEST_TERM_COLOR_BRIGHT_WHITE, TEST_TERM_COLOR_RESET, ssp_type, TEST_TERM_COLOR_RESET); \
-            TEST_MSG(stdout, NULL, TEST_TERM_COLOR_BRIGHT_BLUE "  EXE", " %sCompiled with AddressSanitizer...%s %s%s", \
-                TEST_TERM_COLOR_BRIGHT_WHITE, TEST_TERM_COLOR_RESET, TEST_EXE_USES_ASAN ? "Yes" : "No", \
-                TEST_TERM_COLOR_RESET); \
-            TEST_MSG(stdout, NULL, TEST_TERM_COLOR_BRIGHT_BLUE "  EXE", " %sCompiled with coverage...%s %s%s", \
-                TEST_TERM_COLOR_BRIGHT_WHITE, TEST_TERM_COLOR_RESET, TEST_EXE_USES_COVERAGE ? "Yes" : "No", \
-                TEST_TERM_COLOR_RESET); \
-        }
+            TEST_SHOW_EXE_INFO(); \
+        } \
+        // No closing brace. Body of the main function starts here.
 
 #define TEST_SUITE_RETURN \
     TEST_STATS_SHOW(); \
@@ -228,10 +293,28 @@ static inline const char *TEST_SUITE_SAFE_NAME(const char *s) {
 
 #define TEST_SUITE_RUN(TESTFUNC_ARRAY) \
     TEST_DISABLE_BUFFERING(); \
+    char TEST_SUITE_WORKSPACE_DIR_LOCAL[4096] = {0}; \
     const size_t TEST_LOCAL_TESTFUNC_COUNT = sizeof((TESTFUNC_ARRAY)) / sizeof((TESTFUNC_ARRAY)[0]); \
     for (size_t i = 0; i < TEST_LOCAL_TESTFUNC_COUNT; i++) { \
+        snprintf(TEST_SUITE_WORKSPACE_DIR_LOCAL, sizeof(TEST_SUITE_WORKSPACE_DIR_LOCAL), "%.*s/%.*s", \
+            (int) ((sizeof(TEST_SUITE_WORKSPACE_DIR_LOCAL) - 2) / 2), TEST_SUITE_WORKSPACE_DIR, \
+            (int) ((sizeof(TEST_SUITE_WORKSPACE_DIR_LOCAL) - 2) / 2) - (int) strlen(TEST_SUITE_NAME), TEST_SUITE_NAME); \
+        if (mkdir(TEST_SUITE_WORKSPACE_DIR_LOCAL, 0700) < 0 && errno != EEXIST) { \
+            fprintf(stderr, "%s: unable to create local workspace directory (%s)\n", TEST_SUITE_WORKSPACE_DIR_LOCAL, strerror(errno)); \
+            exit(EXIT_FAILURE); \
+        } \
+        char *cwd = getcwd(NULL, 0); \
+        if (chdir(TEST_SUITE_WORKSPACE_DIR_LOCAL) < 0) { \
+            fprintf(stderr, "%s: unable to enter local workspace directory (%s)\n", TEST_SUITE_WORKSPACE_DIR_LOCAL, strerror(errno));\
+            exit(EXIT_FAILURE); \
+        } \
         const unit_test TEST_LOCAL_TESTFUNC = (TESTFUNC_ARRAY)[i]; \
         const int TEST_LOCAL_RESULT = TEST_LOCAL_TESTFUNC(); \
+        if (chdir(cwd) < 0) { \
+            fprintf(stderr, "%s: unable to return from workspace directory (%s)\n", cwd ? cwd : "INVALID", strerror(errno)); \
+            exit(EXIT_FAILURE); \
+        } \
+        free(cwd); \
         TEST_STATS_UPDATE(TEST_LOCAL_RESULT); \
     }
 
@@ -297,9 +380,23 @@ static inline const char *TEST_SUITE_SAFE_NAME(const char *s) {
         (void) TEST_LOCAL_CHECKPOINT; \
         int TEST_LOCAL_CHECKPOINT_CALL_COUNT = 0; \
         (void) TEST_LOCAL_CHECKPOINT_CALL_COUNT; \
+        char TEST_LOCAL_LOG_DIR[4096] = {0}; \
         struct TestRedirect TEST_LOCAL_REDIRECT = {0}; \
         snprintf(TEST_LOCAL_REDIRECT.unit_suite, sizeof(TEST_LOCAL_REDIRECT.unit_suite), "%s", TEST_SUITE_NAME); \
         snprintf(TEST_LOCAL_REDIRECT.unit_name, sizeof(TEST_LOCAL_REDIRECT.unit_name), "%s", __func__); \
+        snprintf(TEST_LOCAL_LOG_DIR, sizeof(TEST_LOCAL_LOG_DIR), "%.*s/%.*s", \
+            (int) ((sizeof(TEST_LOCAL_LOG_DIR) - 2) / 2), TEST_SUITE_LOG_DIR, \
+            (int) ((sizeof(TEST_LOCAL_LOG_DIR) - 2) / 2), TEST_LOCAL_REDIRECT.unit_name); \
+        if (mkdir(TEST_LOCAL_LOG_DIR, 0700) < 0 && errno != EEXIST) { \
+            fprintf(stderr, "%s: unable to create unit test workspace directory (%s)\n", TEST_LOCAL_LOG_DIR, strerror(errno)); \
+            exit(EXIT_FAILURE); \
+        } \
+        if (chdir(TEST_LOCAL_LOG_DIR) < 0) { \
+            fprintf(stderr, "%s: unable to enter unit test workspace directory (%s)\n", TEST_LOCAL_LOG_DIR, strerror(errno)); \
+            exit(EXIT_FAILURE); \
+        } \
+        snprintf(TEST_LOCAL_REDIRECT.filename, sizeof(TEST_LOCAL_REDIRECT.filename), "%.*s/_capture.log", \
+            (int) sizeof(TEST_LOCAL_REDIRECT.filename) - 15, TEST_LOCAL_LOG_DIR); \
         printf(TEST_TERM_COLOR_BRIGHT_BLUE "  UNIT" TEST_TERM_COLOR_RESET TEST_TERM_COLOR_BRIGHT_WHITE \
                                            " %s... " TEST_TERM_COLOR_RESET, \
             __func__); \
@@ -387,40 +484,22 @@ static inline int TEST_REDIRECT_OUTPUT(struct TestRedirect *r) {
         return -1;
     }
 
-    const char *logdir_root = "unittest_logs";
-    if (mkdir(logdir_root, 0700) && errno != EEXIST) {
-        close(r->fd_stderr);
-        close(r->fd_stdout);
-        fprintf(stderr, "Unable to create log root %s: %s\n", logdir_root, strerror(errno));
-        return -1;
-    }
-
-    char logdir[1024] = {0};
-    snprintf(logdir, sizeof(logdir), "%s/%s", logdir_root, strlen(r->unit_suite) ? r->unit_suite : "unnamed_suite");
-    if (mkdir(logdir, 0700) < 0 && errno != EEXIST) {
-        fprintf(stderr, "Unable to create log dir %s: %s\n", logdir, strerror(errno));
-        return -1;
-    }
-
-    char logfile[4096] = {0};
-    snprintf(logfile, sizeof(logfile), "%s/%s.log", logdir, strlen(r->unit_name) ? r->unit_name : "unnamed_unit");
-
-    const int fd = open(logfile, O_RDWR | O_CREAT | O_TRUNC, 0600);
+    const int open_flags = O_RDWR | O_CREAT | O_TRUNC;
+    const int fd = open(r->filename, open_flags, 0600);
     if (fd < 0) {
-        fprintf(stderr, "Unable to open logfile: %s\n", logfile);
+        fprintf(stderr, "Unable to open logfile: %s\n", r->filename);
         return -1;
     }
-    snprintf(r->filename, sizeof(r->filename), "%s", logfile);
 
     fflush(stdout);
     fflush(stderr);
 
     if (dup2(fd, STDOUT_FILENO) < 0) {
-        fprintf(stderr, "Unable to dup2() stdout to %s\n", logfile);
+        fprintf(stderr, "Unable to dup2() stdout to %s\n", r->filename);
         return -1;
     }
     if (dup2(fd, STDERR_FILENO) < 0) {
-        fprintf(stderr, "Unable to dup2() stderr to %s\n", logfile);
+        fprintf(stderr, "Unable to dup2() stderr to %s\n", r->filename);
         return -1;
     }
     return close(fd);
