@@ -770,7 +770,7 @@ static inline size_t get_format_length(const char *fmt) {
     if (*pos == '.') {
         // Skip over the precision field
         pos++;
-        while (isdigit((unsigned char) *pos)) {
+        while (*pos == '*' || isdigit((unsigned char) *pos)) {
             pos++;
         }
     }
@@ -833,7 +833,6 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
             memmove(next_char + 1, next_char, strlen(next_char) + 1);
             *next_char = '%';
             next_char++;
-            //*next_char = ' ';
             psign = next_char + 1;
         }
         fmt_ = fmt_corrected;
