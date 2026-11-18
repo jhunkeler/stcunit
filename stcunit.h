@@ -833,7 +833,6 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
             memmove(next_char + 1, next_char, strlen(next_char) + 1);
             *next_char = '%';
             next_char++;
-            //*next_char = ' ';
             psign = next_char + 1;
         }
         fmt_ = fmt_corrected;
