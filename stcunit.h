@@ -770,7 +770,7 @@ static inline size_t get_format_length(const char *fmt) {
     if (*pos == '.') {
         // Skip over the precision field
         pos++;
-        while (isdigit((unsigned char) *pos)) {
+        while (*pos == '*' || isdigit((unsigned char) *pos)) {
             pos++;
         }
     }
