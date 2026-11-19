@@ -57,7 +57,11 @@ TEST_UNIT(redirect_save) {
     struct stat st;
     TEST_ASSERT(stat(filename, &st) == 0, "%s should exist", filename);
     TEST_ASSERT(st.st_size != 0, "%s should not be empty");
-    remove(filename);
+    char *match = NULL;
+    size_t match_lineno = 0;
+    TEST_FILE_CONTAINS(filename, "test string\n", 0, -1, &match, &match_lineno);
+    TEST_ASSERT(match != NULL, "%s does not contain the test string");
+    free(match);
     TEST_RETURN
 }
 
