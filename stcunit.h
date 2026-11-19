@@ -128,7 +128,7 @@ static const int TEST_EXE_USES_STACK_PROTECTOR =
 #endif
 
 static int TEST_VERBOSE(void) {
-#ifdef DEBUG
+#ifdef STCUNIT_DEBUG
     // Always enable verbose output during development
     return 1;
 #else
@@ -216,10 +216,13 @@ static inline void TEST_SHOW_EXE_INFO(void) {
 
 static inline void TEST_SUITE_MAKE_WORKSPACE_DIR(void) {
     const char *tmp = getenv("STCUNIT_WORKSPACE_DIR");
-    const char *here = ".";
-    char *rp = realpath(tmp ? tmp : here, NULL);
-    snprintf(TEST_SUITE_WORKSPACE_DIR, sizeof(TEST_SUITE_WORKSPACE_DIR), "%s/%s", rp ? rp : here, tmp ? tmp : "stcunit_workspace");
-    free(rp);
+    if (tmp) {
+        snprintf(TEST_SUITE_WORKSPACE_DIR, sizeof(TEST_SUITE_WORKSPACE_DIR), "%s", tmp);
+    } else {
+        char *rp = realpath(".", NULL);
+        snprintf(TEST_SUITE_WORKSPACE_DIR, sizeof(TEST_SUITE_WORKSPACE_DIR), "%s/stcunit_workspace", rp ? rp : ".");
+        free(rp);
+    }
     if (mkdir(TEST_SUITE_WORKSPACE_DIR, 0700) < 0 && errno != EEXIST) {
         fprintf(stdout, "unable to create workspace directory: %s (%s)\n", TEST_SUITE_WORKSPACE_DIR, strerror(errno));
         exit(EXIT_FAILURE);
