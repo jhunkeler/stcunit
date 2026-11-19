@@ -20,7 +20,7 @@ option(WITH_ASAN "Enable Address Sanitizer")
 add_compile_options(-Wall -Wextra -pedantic -fvisibility=hidden)
 
 if(ALWAYS_VERBOSE)
-    add_compile_definitions(DEBUG=1)
+    add_compile_definitions(STCUNIT_DEBUG=1)
 endif()
 
 if(WITH_COVERAGE)
