@@ -250,7 +250,6 @@ static inline void TEST_SUITE_MAKE_LOG_DIR(void) {
             *p = '/';
             continue;
         }
-        puts(logdir);
         if (mkdir(logdir, 0700) < 0 && errno != EEXIST) {
             fprintf(stdout, "unable to create log directory: %s\n", logdir);
             free(logdir);
@@ -258,7 +257,6 @@ static inline void TEST_SUITE_MAKE_LOG_DIR(void) {
         }
         *p = '/';
     }
-    puts(logdir);
     if (mkdir(logdir, 0700) < 0 && errno != EEXIST) {
         fprintf(stdout, "unable to create log directory: %s\n", logdir);
         free(logdir);
