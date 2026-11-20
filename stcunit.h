@@ -889,10 +889,10 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
     char *fmt_corrected = NULL;
     const char *psign = fmt;
     while ((psign = strstr(psign, "%")) != NULL) {
-        const size_t fmt_len = get_format_length(psign);
+        const size_t invalid = get_format_length(psign);
         // Find unescaped formatters, like errant percent signs (modulo in an assertion)
-        if (fmt_len == 1) {
-            fmt_invalid_count += fmt_len;
+        if (invalid == 1) {
+            fmt_invalid_count += invalid;
         }
         psign++;
     }
@@ -902,8 +902,14 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
 
     if (fmt_invalid_count) {
         // If changes are required to the format string do them here
-        fmt_corrected = calloc(strlen(fmt) + fmt_invalid_count + 1, sizeof(*fmt_corrected));
-        strncpy(fmt_corrected, fmt, strlen(fmt) + 1);
+        const size_t fmt_orig_len = strlen(fmt);
+        const size_t fmt_corrected_len = fmt_orig_len + fmt_invalid_count;
+        fmt_corrected = calloc(fmt_corrected_len + 1, sizeof(*fmt_corrected));
+        if (!fmt_corrected) {
+            fprintf(stream, "unable to allocate memory for corrected format string\n");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(fmt_corrected, fmt, fmt_orig_len + 1);
         psign = fmt_corrected;
         while ((psign = strstr(psign, "%")) != NULL && get_format_length(psign) == 1) {
             char *next_char = (char *) psign + 1;
@@ -918,8 +924,8 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
         fmt_ = fmt_corrected;
     }
 
-    int len = 0;
-    if ((len = vasprintf(&output, fmt_, ap_copy)) < 0) {
+    int output_len;
+    if ((output_len = vasprintf(&output, fmt_, ap_copy)) < 0) {
         fprintf(stream, "%s format encoding error\n", __func__);
         free(fmt_corrected);
         return -1;
@@ -928,7 +934,7 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
     va_end(ap_copy);
 
     char *tokens = output;
-    char *token = NULL;
+    char *token;
     while ((token = strsep(&tokens, "\n")) != NULL) {
         if (strlen(token)) {
             fprintf(stream,
@@ -941,7 +947,7 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
         }
     }
     free(output);
-    return len;
+    return output_len;
 }
 
 static inline int TEST_MSG(FILE *stream, const char *color, const char *prefix, const char *fmt, ...) {
