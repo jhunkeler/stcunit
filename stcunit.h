@@ -901,8 +901,14 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
 
     if (fmt_invalid_count) {
         // If changes are required to the format string do them here
-        fmt_corrected = calloc(strlen(fmt) + fmt_invalid_count + 1, sizeof(*fmt_corrected));
-        strncpy(fmt_corrected, fmt, strlen(fmt) + 1);
+        const size_t fmt_orig_len = strlen(fmt);
+        const size_t fmt_corrected_len = fmt_orig_len + fmt_invalid_count;
+        fmt_corrected = calloc(fmt_corrected_len + 1, sizeof(*fmt_corrected));
+        if (!fmt_corrected) {
+            fprintf(stream, "unable to allocate memory for corrected format string\n");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(fmt_corrected, fmt, fmt_orig_len + 1);
         psign = fmt_corrected;
         while ((psign = strstr(psign, "%")) != NULL && get_format_length(psign) == 1) {
             char *next_char = (char *) psign + 1;
