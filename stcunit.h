@@ -888,10 +888,10 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
     char *fmt_corrected = NULL;
     const char *psign = fmt;
     while ((psign = strstr(psign, "%")) != NULL) {
-        const size_t fmt_len = get_format_length(psign);
+        const size_t invalid = get_format_length(psign);
         // Find unescaped formatters, like errant percent signs (modulo in an assertion)
-        if (fmt_len == 1) {
-            fmt_invalid_count += fmt_len;
+        if (invalid == 1) {
+            fmt_invalid_count += invalid;
         }
         psign++;
     }
@@ -923,8 +923,8 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
         fmt_ = fmt_corrected;
     }
 
-    int len = 0;
-    if ((len = vasprintf(&output, fmt_, ap_copy)) < 0) {
+    int output_len;
+    if ((output_len = vasprintf(&output, fmt_, ap_copy)) < 0) {
         fprintf(stream, "%s format encoding error\n", __func__);
         free(fmt_corrected);
         return -1;
@@ -933,7 +933,7 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
     va_end(ap_copy);
 
     char *tokens = output;
-    char *token = NULL;
+    char *token;
     while ((token = strsep(&tokens, "\n")) != NULL) {
         if (strlen(token)) {
             fprintf(stream,
@@ -946,7 +946,7 @@ static inline int TEST_VMSG(FILE *stream, const char *color, const char *prefix,
         }
     }
     free(output);
-    return len;
+    return output_len;
 }
 
 static inline int TEST_MSG(FILE *stream, const char *color, const char *prefix, const char *fmt, ...) {
